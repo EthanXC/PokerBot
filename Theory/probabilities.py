@@ -10,9 +10,15 @@ I want to design this to be object oriented.
 print("Game Start")
 
 while True:
-    players = int(input("Player amount:"))
-    if players == isinstance(True, int) and players >= 2 and players <= 10:
+    try:
+        players = int(input("Player amount:"))
+    except ValueError:
+        players = None # marks invalid input
+
+    if players is not None and 2 <= players <= 10:
         break
-    else:
-        print("Please enter an integer between 2 and 10")
+
+    print ("Please enter an integer between 2 and 10")
+        
+
 
