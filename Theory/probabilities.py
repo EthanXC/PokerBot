@@ -76,10 +76,24 @@ def parse_cards_line(line: str) -> list[Card]:
 
 
 class Deck:
-    '''The 52-card deck that is used in the game.'''
-    @staticmethod
-    def full_deck() -> list[Card]:
-        return [Card(r, s) for s in VALID_SUITS for r in VALID_RANKS]
+    """A simple 52-card deck you can remove known cards from."""
+
+    def __init__(self) -> None:
+        self.cards: list[Card] = [Card(r, s) for s in VALID_SUITS for r in VALID_RANKS]
+
+    def remove(self, card: Card) -> None:
+        """Remove one specific card; error if it isn't present."""
+        try:
+            self.cards.remove(card)
+        except ValueError as exc:
+            raise ValueError(f"Card not in deck: {card}") from exc
+
+    def remove_many(self, cards: list[Card] | tuple[Card, ...] | set[Card]) -> None:
+        for c in cards:
+            self.remove(c)
+
+    def remaining(self) -> list[Card]:
+        return list(self.cards)
 
 
 @dataclass
@@ -165,7 +179,7 @@ class HandEvaluator:
         """
         Just return the best combo for each of the cards
         """
-        
+
         if len(cards) != 5:
             raise ValueError("score_five() expects exactly 5 cards")
 
@@ -224,17 +238,6 @@ class HandEvaluator:
 
         return (CAT_HIGH, *ranks)
 
-
-def find_all_duplicates(items):
-    seen = set()
-    dupes = set()
-    for x in items:
-        if x in seen:
-            dupes.add(x)
-        else:
-            seen.add(x)
-    return dupes
-
 def prompt_player_count() -> int:
     while True:
         try:
@@ -255,6 +258,10 @@ def prompt_cards_known() -> str:
         print("Invalid input. Please enter 'y' or 'n'.")
 
 def prompt_known_players(player_num: int) -> list[Player]:
+    '''
+    prompts the user and returns a list of Player objects
+    '''
+    
     print("Enter 2 cards per player (e.g. '2H 3H').")
     used_cards: set[Card] = set()
     players: list[Player] = []
@@ -288,14 +295,27 @@ def prompt_known_players(player_num: int) -> list[Player]:
 
 def run_cli() -> None:
     player_num = prompt_player_count()
-    print(f"Starting the program for {player_num} players...")
 
     cards_known = prompt_cards_known()
     if cards_known == "y":
+
+        # returns a list of Player objects
         players = prompt_known_players(player_num)
+
         print("Cards captured successfully:")
         for p in players:
             print(f"Player {p.seat}: {p.hole[0]} {p.hole[1]}")
+
+        known_board: list[Card] = []
+
+        deck = Deck()
+        for p in players:
+            deck.remove_many(p.hole)
+        # deck.remaining() is now the stub deck for runouts / simulations
+
+
+        
+        
     else:
         # TODO: implement Monte Carlo path when opponents' cards are unknown
         pass
