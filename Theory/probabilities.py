@@ -4,7 +4,8 @@ from __future__ import annotations
 import itertools
 import math
 import random
-from dataclasses import dataclass # Exact enumeration of every board completion; above this, use Monte Carlo (still only randomness in runouts).
+from dataclasses import dataclass
+from collections import Counter
 
 _MAX_EXACT_RUNOUTS = 800_000
 _MC_TRIALS = 400_000
@@ -142,22 +143,97 @@ class HandEvaluator:
             raise RuntimeError("No 5-card combinations generated")
         return best_score
 
+    @staticmethod
+    def _straight_high(ranks_desc: list[int]) -> int | None:
+        """
+        Return high card of straight, or None.
+        Expects ranks sorted descending (may contain duplicates).
+        """
+        uniq = sorted(set(ranks_desc), reverse=True)
+        if len(uniq) != 5:
+            return None
+        # Wheel: A-5 straight
+        if uniq == [14, 5, 4, 3, 2]:
+            return 5
+        if uniq[0] - uniq[4] == 4:
+            return uniq[0]
+        return None
+
 
     @classmethod
     def score_five(cls, cards: list[Card]) -> tuple:
         """
-        Return comparable score tuple for exactly 5 cards.
-
-        Suggested format:
-        (category, tiebreak1, tiebreak2, ...)
-        where larger tuples are always stronger.
+        Just return the best combo for each of the cards
         """
+        
         if len(cards) != 5:
             raise ValueError("score_five() expects exactly 5 cards")
 
-        # You implement hand category + kicker math here.
-        raise NotImplementedError("Implement score_five()")
+        ranks = sorted([RANK_TO_VALUE[c.rank] for c in cards], reverse=True)
+        suits = [c.suit for c in cards]
 
+        CAT_HIGH = 0
+        CAT_PAIR = 1
+        CAT_TWO_PAIR = 2
+        CAT_TRIPS = 3
+        CAT_STRAIGHT = 4
+        CAT_FLUSH = 5
+        CAT_FULL_HOUSE = 6
+        CAT_QUADS = 7
+        CAT_STRAIGHT_FLUSH = 8
+
+        is_flush = len(set(suits)) == 1
+        straight_high = cls._straight_high(ranks)
+
+        c = Counter(ranks)
+        counts = sorted(c.values(), reverse=True)
+
+        if straight_high is not None and is_flush:
+            return (CAT_STRAIGHT_FLUSH, straight_high)
+
+        if counts == [4, 1]:
+            quad_rank = max(r for r, cnt in c.items() if cnt == 4)
+            kicker = max(r for r, cnt in c.items() if cnt == 1)
+            return (CAT_QUADS, quad_rank, kicker)
+
+        if counts == [3, 2]:
+            trips_rank = max(r for r, cnt in c.items() if cnt == 3)
+            pair_rank = max(r for r, cnt in c.items() if cnt == 2)
+            return (CAT_FULL_HOUSE, trips_rank, pair_rank)
+
+        if is_flush:
+            return (CAT_FLUSH, *ranks)
+
+        if straight_high is not None:
+            return (CAT_STRAIGHT, straight_high)
+
+        if counts == [3, 1, 1]:
+            trips_rank = max(r for r, cnt in c.items() if cnt == 3)
+            kickers = sorted((r for r, cnt in c.items() if cnt == 1), reverse=True)
+            return (CAT_TRIPS, trips_rank, *kickers)
+
+        if counts == [2, 2, 1]:
+            pairs = sorted((r for r, cnt in c.items() if cnt == 2), reverse=True)
+            kicker = max(r for r, cnt in c.items() if cnt == 1)
+            return (CAT_TWO_PAIR, pairs[0], pairs[1], kicker)
+
+        if counts == [2, 1, 1, 1]:
+            pair_rank = max(r for r, cnt in c.items() if cnt == 2)
+            kickers = sorted((r for r, cnt in c.items() if cnt == 1), reverse=True)
+            return (CAT_PAIR, pair_rank, *kickers)
+
+        return (CAT_HIGH, *ranks)
+
+
+def find_all_duplicates(items):
+    seen = set()
+    dupes = set()
+    for x in items:
+        if x in seen:
+            dupes.add(x)
+        else:
+            seen.add(x)
+    return dupes
 
 def prompt_player_count() -> int:
     while True:
