@@ -293,6 +293,53 @@ def prompt_known_players(player_num: int) -> list[Player]:
     return players
 
 
+def compute_equities_known_holes(
+    players: list[Player], known_board: list[Card], deck: Deck
+) -> tuple[list[float], int, str]:
+    """
+    Compute per-player equity when all hole cards are known.
+    Returns (equities, runs, mode) where mode is 'exact' or 'monte_carlo'.
+    """
+    if len(known_board) > 5:
+        raise ValueError("Board cannot have more than 5 cards")
+
+    missing = 5 - len(known_board)
+    if missing < 0:
+        raise ValueError("Invalid board size")
+
+    n_players = len(players)
+    wins = [0.0] * n_players
+
+    if missing == 0:
+        winners, _ = HandEvaluator.showdown(players, known_board)
+        shares = HandEvaluator.win_shares(n_players, winners)
+        return shares, 1, "exact"
+
+    remaining = deck.remaining()
+    combo_count = math.comb(len(remaining), missing)
+
+    if combo_count > _MAX_EXACT_RUNOUTS:
+        for _ in range(_MC_TRIALS):
+            runout = random.sample(remaining, missing)
+            full_board = known_board + runout
+            winners, _ = HandEvaluator.showdown(players, full_board)
+            shares = HandEvaluator.win_shares(n_players, winners)
+            for i, s in enumerate(shares):
+                wins[i] += s
+        return [w / _MC_TRIALS for w in wins], _MC_TRIALS, "monte_carlo"
+
+    total = 0
+    for runout in itertools.combinations(remaining, missing):
+        total += 1
+        full_board = known_board + list(runout)
+        winners, _ = HandEvaluator.showdown(players, full_board)
+        shares = HandEvaluator.win_shares(n_players, winners)
+        for i, s in enumerate(shares):
+            wins[i] += s
+
+    return [w / total for w in wins], total, "exact"
+
+
 def run_cli() -> None:
     player_num = prompt_player_count()
 
@@ -306,6 +353,7 @@ def run_cli() -> None:
         for p in players:
             print(f"Player {p.seat}: {p.hole[0]} {p.hole[1]}")
 
+        # preflop. Don't know any cards on the board yet
         known_board: list[Card] = []
 
         deck = Deck()
@@ -313,9 +361,15 @@ def run_cli() -> None:
             deck.remove_many(p.hole)
         # deck.remaining() is now the stub deck for runouts / simulations
 
+        equities, runs, mode = compute_equities_known_holes(players, known_board, deck)
+        if mode == "exact":
+            print(f"\nComputed exact equities over {runs:,} runouts:")
+        else:
+            print(f"\nComputed Monte Carlo equities over {runs:,} trials:")
 
-        
-        
+        for p, eq in zip(players, equities):
+            print(f"Player {p.seat}: {eq:.2%}")
+
     else:
         # TODO: implement Monte Carlo path when opponents' cards are unknown
         pass
