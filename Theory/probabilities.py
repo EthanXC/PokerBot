@@ -132,8 +132,16 @@ class HandEvaluator:
         if len(cards) != 7:
             raise ValueError("score_seven() expects exactly 7 cards")
 
-        # You implement this math: evaluate all C(7,5)=21 subsets with score_five().
-        raise NotImplementedError("Implement score_seven()")
+        # Evaluate all C(7,5)=21 subsets and keep the best score.
+        best_score: tuple | None = None
+        for five in itertools.combinations(cards, 5):
+            score = cls.score_five(list(five))
+            if best_score is None or score > best_score:
+                best_score = score
+        if best_score is None:
+            raise RuntimeError("No 5-card combinations generated")
+        return best_score
+
 
     @classmethod
     def score_five(cls, cards: list[Card]) -> tuple:
