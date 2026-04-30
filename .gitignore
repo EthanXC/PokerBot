@@ -1,0 +1,19 @@
+# Disk cache (regenerable; pickles of trained models)
+.cache/
+
+# Claude local settings
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
