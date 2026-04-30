@@ -294,7 +294,7 @@ def prompt_known_players(player_num: int) -> list[Player]:
 
 
 def compute_equities_known_holes(
-    players: list[Player], known_board: list[Card], deck: Deck
+    players: list[Player], known_board: list[Card], deck: Deck, mode_preference: str = "auto"
 ) -> tuple[list[float], int, str]:
     """
     Compute per-player equity when all hole cards are known.
@@ -318,7 +318,11 @@ def compute_equities_known_holes(
     remaining = deck.remaining()
     combo_count = math.comb(len(remaining), missing)
 
-    if combo_count > _MAX_EXACT_RUNOUTS:
+    use_monte_carlo = (
+        mode_preference == "mc"
+        or (mode_preference == "auto" and combo_count > _MAX_EXACT_RUNOUTS)
+    )
+    if use_monte_carlo:
         for _ in range(_MC_TRIALS):
             runout = random.sample(remaining, missing)
             full_board = known_board + runout
@@ -340,6 +344,15 @@ def compute_equities_known_holes(
     return [w / total for w in wins], total, "exact"
 
 
+def prompt_calc_mode() -> str:
+    """Ask user whether to run exact, Monte Carlo, or automatic mode."""
+    while True:
+        mode = input("Calculation mode? exact / mc / auto: ").strip().lower()
+        if mode in {"exact", "mc", "auto"}:
+            return mode
+        print("Please enter 'exact', 'mc', or 'auto'.")
+
+
 def run_cli() -> None:
     player_num = prompt_player_count()
 
@@ -349,9 +362,7 @@ def run_cli() -> None:
         # returns a list of Player objects
         players = prompt_known_players(player_num)
 
-        print("Cards captured successfully:")
-        for p in players:
-            print(f"Player {p.seat}: {p.hole[0]} {p.hole[1]}")
+        print("Cards captured successfully")
 
         # preflop. Don't know any cards on the board yet
         known_board: list[Card] = []
@@ -361,7 +372,10 @@ def run_cli() -> None:
             deck.remove_many(p.hole)
         # deck.remaining() is now the stub deck for runouts / simulations
 
-        equities, runs, mode = compute_equities_known_holes(players, known_board, deck)
+        mode_preference = prompt_calc_mode()
+        equities, runs, mode = compute_equities_known_holes(
+            players, known_board, deck, mode_preference=mode_preference
+        )
         if mode == "exact":
             print(f"\nComputed exact equities over {runs:,} runouts:")
         else:
